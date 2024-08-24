@@ -320,7 +320,6 @@ class SleeperSheets:
 
 
 if __name__ == '__main__':
-    # Use 'config-theleague.json' or 'config-worldleague.json' based on your needs
-    config_file = CONFIG_FILE  # Example config file
+    config_file = CONFIG_FILE
     sleeper_sheets = SleeperSheets(config_file)
     sleeper_sheets.run()
