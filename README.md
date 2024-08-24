@@ -7,7 +7,8 @@ Fetches user, matchup, and roster data from the Sleeper API.
 Processes weekly points for each user and calculates the season total.
 Uploads processed data to Google Sheets.
 Creates a summary sheet to highlight the highest-scoring user across seasons.
-Prerequisites
+
+## Prerequisites
 Python 3.x
 Google Sheets API access
 requests, pandas, gspread, google-auth libraries
