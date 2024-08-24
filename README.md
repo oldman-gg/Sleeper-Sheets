@@ -1,4 +1,7 @@
 # Sleeper-Sheets
+
+![GitHub last commit](https://img.shields.io/github/last-commit/oldman-gg/Sleeper-Sheets)
+
 Sleeper-Sheets is a Python script that integrates with the Sleeper fantasy football API and Google Sheets. It fetches league data, processes it, and uploads the results to Google Sheets for tracking and analysis.
 
 ## Features
