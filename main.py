@@ -6,7 +6,7 @@ import json
 import os
 from datetime import datetime
 
-CONFIG_FILE = 'config.json'
+CONFIG_FILE = 'config.json' #see config-example.json for more information
 
 class SleeperSheets:
     """
