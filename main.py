@@ -193,7 +193,7 @@ class SleeperSheets:
 
     def upload_to_google_sheets(self, sheet_name, df):
         """
-        Uploads a DataFrame to a specific sheet in Google Sheets.
+        Uploads a DataFrame to a specific sheet in Google Sheets, including weekly winners.
 
         Args:
             sheet_name (str): The name of the sheet to upload data to.
@@ -205,12 +205,39 @@ class SleeperSheets:
         )
         client = gspread.authorize(credentials)
         spreadsheet = client.open_by_key(self.spreadsheet_id)
+
         try:
             sheet = spreadsheet.worksheet(sheet_name)
             sheet.clear()  # Clear existing data
         except gspread.exceptions.WorksheetNotFound:
             sheet = spreadsheet.add_worksheet(title=sheet_name, rows="100", cols="20")  # Create new sheet if not found
-        sheet.update([df.columns.values.tolist()] + df.values.tolist())
+
+        # Update sheet with DataFrame data
+        data = [df.columns.values.tolist()] + df.values.tolist()
+        sheet.update(range_name='A1', values=data)
+
+        # Prepare winner row
+        weeks = [f"Week {i}" for i in range(1, 19)]  # Assuming 18 weeks
+        winner_row = ['Weekly Winner'] + [''] * (len(df.columns) - 1)
+
+        for week in weeks:
+            if week in df.columns:
+                # Find the highest scorer for the week
+                week_data = df[['Display Name', week]].sort_values(by=week, ascending=False)
+                if not week_data.empty:
+                    highest_score = week_data.iloc[0][week]
+                    if highest_score > 0:
+                        winner_name = week_data.iloc[0]['Display Name']
+                        # Place the winner name in the correct column
+                        week_index = df.columns.get_loc(week)
+                        winner_row[week_index] = winner_name
+
+        # Add an empty row for better spacing
+        last_row = len(df) + 2  # Account for 1-based indexing and header row
+        sheet.update(range_name=f'A{last_row}', values=[[''] * len(df.columns)])
+
+        # Add winner row below the empty row
+        sheet.update(range_name=f'A{last_row + 1}', values=[winner_row])
 
     def create_summary_sheet(self, season_dfs):
         """
