@@ -1,0 +1,11 @@
+{
+    "spreadsheet_id": "spreadsheet ID which can be found within the sheet URL",
+    "service_account_file": ".json from your GCP service account",
+    "players_file": "players_data.json",
+    "league_ids": {
+        "2021": "insert 2021 league ID",
+        "2022": "insert 2022 league ID",
+        "2023": "insert 2023 league ID",
+        "2024": "insert 2024 league ID"
+    }
+}
