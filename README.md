@@ -2,29 +2,22 @@
 Sleeper-Sheets is a Python script that integrates with the Sleeper fantasy football API and Google Sheets. It fetches league data, processes it, and uploads the results to Google Sheets for tracking and analysis.
 
 ## Features
-Fetches user, roster, and matchup data from the Sleeper API.
-Processes weekly and seasonal fantasy football data.
-Filters out users with excessive weeks of zero points.
-Uploads processed data to Google Sheets.
-Creates or updates a summary sheet with league records.
+- Fetches user, roster, and matchup data from the Sleeper API.
+- Processes weekly and seasonal fantasy football data.
+- Uploads processed data to Google Sheets.
+- Creates or updates a summary sheet with league records.
 
 ## Installation
-Clone the Repository
-
+### Clone the Repository
 - git clone https://github.com/yourusername/Sleeper-Sheets.git
 - cd Sleeper-Sheets
 
-Create a Virtual Environment
-
-- python -m venv venv
-- source venv/bin/activate  # On Windows use `venv\Scripts\activate`
-
-Install Dependencies 
-
+### Install Dependencies
 - pip install -r requirements.txt 
 
-Setup Configuration
-- Copy the config-example.json to config.json and fill in your configuration details:
+### Setup Configuration
+- Copy the config-example.json and rename it to config.json and fill in your configuration details:
+```python
 {
     "spreadsheet_id": "your_google_sheet_id",
     "service_account_file": "path_to_your_service_account_file.json",
@@ -36,11 +29,13 @@ Setup Configuration
         "2024": "your_league_id_2024"
     }
 }
+```
+Note: it is not required to enter a league ID for each season. 
 ## Usage
-Set Up Google Sheets API
+### Set Up Google Sheets API
 - Ensure you have a Google service account and have shared your Google Sheets with the service account email address.
 
-Run the Script
+### Run the Script
 - python main.py 
 - This will initialize the script, process the season data for each league, and upload the results to Google Sheets.
 
