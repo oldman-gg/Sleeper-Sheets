@@ -1,3 +1,6 @@
+options:
+  logging: CLOUD_LOGGING_ONLY
+
 steps:
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     entrypoint: 'bash'
@@ -8,3 +11,5 @@ steps:
           --runtime python39 \
           --trigger-http \
           --allow-unauthenticated
+
+# Optionally, you can add additional steps or configurations here if needed.
