@@ -12,7 +12,7 @@ Python 3.x
 Google Sheets API access
 requests, pandas, gspread, google-auth libraries
 
-##Setup
+## Setup
 Clone the Repository
 git clone https://github.com/yourusername/your-repo.git
 cd your-repo
