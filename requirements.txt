@@ -1,8 +1,0 @@
-functions-framework
-google-cloud-functions
-requests
-pandas
-gspread
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
