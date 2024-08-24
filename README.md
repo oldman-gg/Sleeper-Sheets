@@ -22,3 +22,5 @@ Clone the Repository
 
 Ensure you have the required Python libraries installed:
 pip install requests pandas gspread google-auth
+
+Ran out of time tonight to finish this.  Will finish this readme in the coming days. 
