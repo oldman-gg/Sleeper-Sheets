@@ -14,9 +14,11 @@ requests, pandas, gspread, google-auth libraries
 
 ## Setup
 Clone the Repository
-git clone https://github.com/yourusername/your-repo.git
-cd your-repo
-Install Dependencies
+- git clone https://github.com/yourusername/your-repo.git
+
+- cd your-repo
+
+## Install Dependencies
 
 Ensure you have the required Python libraries installed:
 pip install requests pandas gspread google-auth
