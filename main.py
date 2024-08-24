@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime
 
+CONFIG_FILE = 'config.json'
 
 class SleeperSheets:
     """
@@ -13,7 +14,7 @@ class SleeperSheets:
     processing that data, and uploading it to Google Sheets.
     """
 
-    def __init__(self, config_file='config-theleague.json'):
+    def __init__(self, config_file=CONFIG_FILE):
         """
         Initializes the class by loading configuration settings from a JSON file.
 
@@ -26,6 +27,7 @@ class SleeperSheets:
         self.players_file = self.config['players_file']
         self.league_ids = self.config['league_ids']
         self.current_year = datetime.now().year  # Get the current calendar year
+        print(f"Initialized with config: {self.config}")
 
     def load_config(self, config_file):
         """
@@ -37,8 +39,11 @@ class SleeperSheets:
         Returns:
             dict: Configuration settings.
         """
+        print(f"Loading configuration from {config_file}...")
         with open(config_file, 'r') as file:
-            return json.load(file)
+            config = json.load(file)
+        print("Configuration loaded successfully.")
+        return config
 
     def load_player_data(self):
         """
@@ -47,10 +52,12 @@ class SleeperSheets:
         Returns:
             dict: A dictionary where keys are player IDs and values are player names.
         """
+        print(f"Loading player data from {self.players_file}...")
         if os.path.exists(self.players_file):
             with open(self.players_file, 'r') as file:
                 players_data = json.load(file)
             player_names = {pid: pdata.get('full_name', 'Unknown Player') for pid, pdata in players_data.items()}
+            print(f"Player data loaded successfully. Found {len(player_names)} players.")
             return player_names
         else:
             print(f"Error: Player data file {self.players_file} not found.")
@@ -67,10 +74,13 @@ class SleeperSheets:
         Returns:
             list: A list of user data dictionaries.
         """
+        print(f"Fetching user data for league ID {league_id} (Year: {year})...")
         url = f'https://api.sleeper.app/v1/league/{league_id}/users'
         response = requests.get(url)
         if response.status_code == 200:
-            return response.json()
+            users = response.json()
+            print(f"Fetched {len(users)} users.")
+            return users
         else:
             print(f"Error: Unable to fetch user data for league year {year} (Status code: {response.status_code})")
             return []
@@ -87,13 +97,15 @@ class SleeperSheets:
         Returns:
             list: A list of matchup data dictionaries.
         """
+        print(f"Fetching matchup data for league ID {league_id}, week {week} (Year: {year})...")
         url = f'https://api.sleeper.app/v1/league/{league_id}/matchups/{week}'
         response = requests.get(url)
         if response.status_code == 200:
-            return response.json()
+            matchups = response.json()
+            print(f"Fetched {len(matchups)} matchups for week {week}.")
+            return matchups
         else:
-            print(
-                f"Error: Unable to fetch matchup data for league year {year}, week {week} (Status code: {response.status_code})")
+            print(f"Error: Unable to fetch matchup data for league year {year}, week {week} (Status code: {response.status_code})")
             return []
 
     def fetch_rosters(self, league_id, year):
@@ -107,10 +119,13 @@ class SleeperSheets:
         Returns:
             list: A list of roster data dictionaries.
         """
+        print(f"Fetching roster data for league ID {league_id} (Year: {year})...")
         url = f'https://api.sleeper.app/v1/league/{league_id}/rosters'
         response = requests.get(url)
         if response.status_code == 200:
-            return response.json()
+            rosters = response.json()
+            print(f"Fetched {len(rosters)} rosters.")
+            return rosters
         else:
             print(f"Error: Unable to fetch roster data for league year {year} (Status code: {response.status_code})")
             return []
@@ -125,10 +140,10 @@ class SleeperSheets:
         Returns:
             pd.DataFrame: The filtered DataFrame.
         """
-        # Assuming columns for weeks are in the format 'Week X'
+        print("Filtering rows with more than 5 weeks of zero points...")
         week_columns = [col for col in df.columns if col.startswith('Week')]
-        # Apply the filter
         filtered_df = df[df[week_columns].eq(0).sum(axis=1) <= 5]
+        print(f"Filtered DataFrame has {len(filtered_df)} rows.")
         return filtered_df
 
     def process_season(self, league_id, year):
@@ -142,24 +157,22 @@ class SleeperSheets:
         Returns:
             pd.DataFrame: A DataFrame containing weekly points and total points for each user.
         """
+        print(f"Processing season data for league ID {league_id} (Year: {year})...")
         users = self.fetch_users(league_id, year)
         rosters = self.fetch_rosters(league_id, year)
 
-        # If no users or rosters data, return an empty DataFrame
         if not users or not rosters:
             print(f"No data available for league year {year}.")
             return pd.DataFrame()
 
-        # Map roster IDs to user IDs
         roster_to_user = {roster['roster_id']: roster['owner_id'] for roster in rosters}
-
-        # Map user IDs to display names
         user_ids = {user['user_id']: user['display_name'] for user in users}
         user_data = {user_id: {'display_name': display_name} for user_id, display_name in user_ids.items()}
 
         weeks = range(1, 19)  # Assuming 18 weeks in the season
 
         for week in weeks:
+            print(f"Processing week {week}...")
             matchups = self.fetch_matchups(league_id, week, year)
             if matchups:
                 for matchup in matchups:
@@ -169,7 +182,6 @@ class SleeperSheets:
                     if user_id and user_id in user_data:
                         user_data[user_id][f"Week {week}"] = points
 
-        # Prepare data for DataFrame
         rows = []
         for user_id, data in user_data.items():
             row = [user_id, data.get('display_name', 'N/A')]
@@ -181,14 +193,13 @@ class SleeperSheets:
             row.append(total_points)
             rows.append(row)
 
-        # Create DataFrame from rows
         df = pd.DataFrame(rows,
                           columns=['User ID', 'Display Name'] + [f"Week {week}" for week in weeks] + ['Season Total'])
 
-        # Filter out rows with more than 5 weeks of zero points only if not the current year
         if year != str(self.current_year):
             df = self.filter_rows(df)
 
+        print(f"Processed data for league year {year}. DataFrame shape: {df.shape}.")
         return df
 
     def upload_to_google_sheets(self, sheet_name, df):
@@ -216,8 +227,8 @@ class SleeperSheets:
         data = [df.columns.values.tolist()] + df.values.tolist()
         sheet.update(range_name='A1', values=data)
 
-        # Only add the "Weekly Winner" row if this is not "The League Records" sheet
-        if "The League Records" not in sheet_name:
+        # Only add the "Weekly Winner" row if this is not "League Records" sheet
+        if "League Records" not in sheet_name:
             # Prepare winner row
             weeks = [f"Week {i}" for i in range(1, 19)]  # Assuming 18 weeks
             winner_row = ['Weekly Winner'] + [''] * (len(df.columns) - 1)
@@ -243,20 +254,19 @@ class SleeperSheets:
 
     def create_summary_sheet(self, season_dfs):
         """
-        Creates a summary sheet that combines data from all seasons and identifies the highest-scoring user.
+        Creates or updates "League Records" sheet with the highest-scoring user details.
 
         Args:
-            season_dfs (dict): A dictionary where keys are years and values are DataFrames for each season.
+            season_dfs (dict): A dictionary of DataFrames for different seasons.
         """
-        # Ensure season_dfs is a dictionary of DataFrames
+        print("Creating or updating 'League Records' sheet...")
         if not isinstance(season_dfs, dict):
             raise TypeError("season_dfs should be a dictionary of DataFrames")
 
         # Prepare a list of DataFrames, filtering out empty ones and dropping all-NA columns
         valid_dfs = []
-        for df in season_dfs.values():
+        for year, df in season_dfs.items():
             if not df.empty:
-                # Drop columns with all-NA values
                 df_cleaned = df.dropna(axis=1, how='all')
                 valid_dfs.append(df_cleaned)
 
@@ -280,32 +290,37 @@ class SleeperSheets:
                 'Display Name': [highest_row['Display Name']],
                 'Total Points': [highest_total]
             })
-            self.upload_to_google_sheets('The League Records', summary_df)
+            self.upload_to_google_sheets('League Records', summary_df)
         else:
             print("No valid data available to create summary.")
 
     def run(self):
         """
-        Main method to run the entire process: fetch data, process it, upload to Google Sheets, and create a summary.
+        Main method to run the data processing and uploading tasks.
         """
+        print("Starting the script execution...")
+
+        # Process each season
         season_dfs = {}
         for year, league_id in self.league_ids.items():
-            print(f"Processing season data for year {year}...")
-            df = self.process_season(league_id, year)
-            if not df.empty:
-                sheet_name = f'{year} Season - Weekly Points'
-                self.upload_to_google_sheets(sheet_name, df)
-                season_dfs[year] = df
+            if league_id:  # Check if league_id is not empty
+                print(f"Processing {year} season data...")
+                season_df = self.process_season(league_id, year)
+                sheet_name = f"{year} Season - Weekly Points"
+                if not season_df.empty:
+                    print(f"Uploading {year} season data to Google Sheets.")
+                    self.upload_to_google_sheets(sheet_name, season_df)
+                    season_dfs[year] = season_df
+                else:
+                    print(f"No data available for {year} season.")
 
-        # Create a summary sheet if there is valid data
-        if season_dfs:
-            self.create_summary_sheet(season_dfs)
-            for year, df in season_dfs.items():
-                print(f"Successfully uploaded {len(df)} user IDs for the {year} season.")
-        else:
-            print("No data available to create summary.")
+        # Create or update "League Records" sheet
+        self.create_summary_sheet(season_dfs)
+        print("Script execution completed.")
 
 
 if __name__ == '__main__':
-    sleeper_sheets = SleeperSheets()
+    # Use 'config-theleague.json' or 'config-worldleague.json' based on your needs
+    config_file = CONFIG_FILE  # Example config file
+    sleeper_sheets = SleeperSheets(config_file)
     sleeper_sheets.run()
