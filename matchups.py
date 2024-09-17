@@ -4,6 +4,8 @@ from google.oauth2 import service_account
 import json
 import os
 
+#script to get all of the rostered players for every week and compute the highest scorer
+
 # Load the configuration from config.json
 with open('config.json') as config_file:
     config = json.load(config_file)
