@@ -6,6 +6,7 @@ import json
 import os
 from datetime import datetime
 
+
 CONFIG_FILE = 'config.json' #see config-example.json for more information
 
 class SleeperSheets:
@@ -252,48 +253,6 @@ class SleeperSheets:
             # Add winner row below the empty row
             sheet.update(range_name=f'A{last_row + 1}', values=[winner_row])
 
-    def create_summary_sheet(self, season_dfs):
-        """
-        Creates or updates "League Records" sheet with the highest-scoring user details.
-
-        Args:
-            season_dfs (dict): A dictionary of DataFrames for different seasons.
-        """
-        print("Creating or updating 'League Records' sheet...")
-        if not isinstance(season_dfs, dict):
-            raise TypeError("season_dfs should be a dictionary of DataFrames")
-
-        # Prepare a list of DataFrames, filtering out empty ones and dropping all-NA columns
-        valid_dfs = []
-        for year, df in season_dfs.items():
-            if not df.empty:
-                df_cleaned = df.dropna(axis=1, how='all')
-                valid_dfs.append(df_cleaned)
-
-        # Concatenate DataFrames from all seasons
-        if valid_dfs:
-            combined_df = pd.concat(valid_dfs, ignore_index=True)
-
-            # Find the highest total points
-            highest_total = combined_df['Season Total'].max()
-            highest_row = combined_df[combined_df['Season Total'] == highest_total].iloc[0]
-
-            # Identify the season with the highest total points
-            highest_user_id = highest_row['User ID']
-            season = next(year for year, df in season_dfs.items() if highest_user_id in df['User ID'].values)
-
-            # Prepare summary DataFrame
-            summary_df = pd.DataFrame({
-                'Record': ['Most Points Scored In A Total Season'],
-                'Season': [season],
-                'User ID': [highest_row['User ID']],
-                'Display Name': [highest_row['Display Name']],
-                'Total Points': [highest_total]
-            })
-            self.upload_to_google_sheets('League Records', summary_df)
-        else:
-            print("No valid data available to create summary.")
-
     def run(self):
         """
         Main method to run the data processing and uploading tasks.
@@ -314,8 +273,7 @@ class SleeperSheets:
                 else:
                     print(f"No data available for {year} season.")
 
-        # Create or update "League Records" sheet
-        self.create_summary_sheet(season_dfs)
+
         print("Script execution completed.")
 
 
