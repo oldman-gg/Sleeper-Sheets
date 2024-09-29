@@ -80,6 +80,5 @@ This project is licensed under the MIT License. See the LICENSE file for details
 Replace placeholders like yourusername, your_google_sheet_id, and path_to_your_service_account_file.json with your actual details.
 
 ## To Dos
-- Add league record for most weekly wins for each year and in league history
-- Add league record for largest margin of victory for each week, each year, and in league history
-- Add league record for smallest margin of victory for each week, each year, and in league history
+- Introduce logic of current NFL week + year so that incomplete NFL weeks are not counted in sheets
+- Introduce AI to provide a summary of the the week and an overview of the current season's incentives
