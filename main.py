@@ -6,7 +6,7 @@ import json
 import os
 from datetime import datetime
 
-CONFIG_FILE = 'config-test.json'  # Path to your configuration file
+CONFIG_FILE = 'config.json'  # Path to your configuration file
 
 # Load the configuration from config.json
 with open(CONFIG_FILE, 'r') as config_file:
