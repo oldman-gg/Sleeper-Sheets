@@ -139,11 +139,13 @@ class SleeperSheets:
         Processes the season data for a specific league and year.
 
         Args:
-            league_id (str): The ID of the league to process.
+            league_id (str): The ID of the league.
             year (str): The year of the league.
 
         Returns:
-            pd.DataFrame: A DataFrame containing weekly points and total points for each user.
+            Tuple[pd.DataFrame, pd.DataFrame]: A tuple containing:
+                - A DataFrame with weekly points, total points, and wins for each user.
+                - A DataFrame with wins and losses for each user.
         """
         print(f"Processing season data for league ID {league_id} (Year: {year})...")
         users = self.fetch_users(league_id, year)
@@ -151,11 +153,15 @@ class SleeperSheets:
 
         if not users or not rosters:
             print(f"No data available for league year {year}.")
-            return pd.DataFrame()
+            return pd.DataFrame(), pd.DataFrame()
 
         roster_to_user = {roster['roster_id']: roster.get('owner_id', None) for roster in rosters}
         user_ids = {user['user_id']: user.get('display_name', 'Unknown') for user in users}
         user_data = {user_id: {'display_name': display_name} for user_id, display_name in user_ids.items()}
+
+        # Initialize wins and losses counters
+        user_wins = {user_id: 0 for user_id in user_data}
+        user_losses = {user_id: 0 for user_id in user_data}
 
         weeks = range(1, 19)  # Assuming 18 weeks in the season
 
@@ -163,6 +169,43 @@ class SleeperSheets:
             print(f"Processing week {week}...")
             matchups = self.fetch_matchups(league_id, week, year)
             if matchups:
+                # Organize matchups by matchup_id
+                matchup_dict = {}
+                for matchup in matchups:
+                    matchup_id = matchup['matchup_id']
+                    if matchup_id not in matchup_dict:
+                        matchup_dict[matchup_id] = []
+                    matchup_dict[matchup_id].append(matchup)
+
+                # Determine winners and update wins and losses
+                for matchup_id, teams in matchup_dict.items():
+                    if len(teams) != 2:
+                        # In case of bye weeks or incomplete data
+                        continue
+                    team1, team2 = teams
+                    points1 = team1.get('points', 0)
+                    points2 = team2.get('points', 0)
+                    roster_id1 = team1['roster_id']
+                    roster_id2 = team2['roster_id']
+                    user_id1 = roster_to_user.get(roster_id1)
+                    user_id2 = roster_to_user.get(roster_id2)
+                    if points1 > points2:
+                        # user1 wins, user2 loses
+                        if user_id1 in user_wins:
+                            user_wins[user_id1] += 1
+                        if user_id2 in user_losses:
+                            user_losses[user_id2] += 1
+                    elif points2 > points1:
+                        # user2 wins, user1 loses
+                        if user_id2 in user_wins:
+                            user_wins[user_id2] += 1
+                        if user_id1 in user_losses:
+                            user_losses[user_id1] += 1
+                    else:
+                        # Handle ties if necessary
+                        pass
+
+                # Collect weekly points
                 for matchup in matchups:
                     roster_id = matchup['roster_id']
                     points = matchup['points']
@@ -170,6 +213,7 @@ class SleeperSheets:
                     if user_id and user_id in user_data:
                         user_data[user_id][f"Week {week}"] = points
 
+        # Build DataFrame rows for weekly points
         rows = []
         for user_id, data in user_data.items():
             row = [user_id, data.get('display_name', 'N/A')]
@@ -179,16 +223,87 @@ class SleeperSheets:
                 row.append(week_points)
                 total_points += week_points
             row.append(total_points)
+            wins = user_wins.get(user_id, 0)
+            row.append(wins)
             rows.append(row)
 
-        df = pd.DataFrame(rows,
-                          columns=['User ID', 'Display Name'] + [f"Week {week}" for week in weeks] + ['Season Total'])
+        # Define DataFrame columns including the 'Wins' column
+        df_columns = ['User ID', 'Display Name'] + [f"Week {week}" for week in weeks] + ['Season Total', 'Wins']
+
+        df = pd.DataFrame(rows, columns=df_columns)
+
+        # Build DataFrame for wins and losses
+        win_loss_rows = []
+        for user_id in user_data:
+            display_name = user_data[user_id]['display_name']
+            wins = user_wins.get(user_id, 0)
+            losses = user_losses.get(user_id, 0)
+            win_loss_rows.append([year, display_name, wins, losses])
+
+        win_loss_df = pd.DataFrame(win_loss_rows, columns=['Season', 'Display Name', 'Wins', 'Losses'])
 
         if year != str(self.current_year):
             df = self.filter_rows(df)
 
         print(f"Processed data for league year {year}. DataFrame shape: {df.shape}.")
-        return df
+        return df, win_loss_df
+
+    def create_win_loss_summary(self, combined_win_loss_df):
+        """
+        Creates a summary DataFrame of wins and losses per user per season,
+        including total wins, losses, and winning percentages.
+
+        Args:
+            combined_win_loss_df (pd.DataFrame): DataFrame containing 'Season', 'Display Name', 'Wins', 'Losses'.
+
+        Returns:
+            pd.DataFrame: Formatted DataFrame as per the desired output.
+        """
+        # Pivot the data to have seasons as columns
+        pivot_df = combined_win_loss_df.pivot(index='Display Name', columns='Season', values=['Wins', 'Losses']).fillna(0)
+
+        # Flatten the multi-level columns
+        pivot_df.columns = [f"{col[1]} {col[0]}" for col in pivot_df.columns]
+
+        # Compute winning percentages per season
+        seasons = self.league_ids.keys()
+        for season in seasons:
+            wins_col = f"{season} Wins"
+            losses_col = f"{season} Losses"
+            pct_col = f"{season} Winning %"
+            if wins_col in pivot_df.columns and losses_col in pivot_df.columns:
+                pivot_df[pct_col] = pivot_df[wins_col] / (pivot_df[wins_col] + pivot_df[losses_col])
+                pivot_df[pct_col] = pivot_df[pct_col].fillna(0)
+
+        # Compute total wins, losses, and winning percentage
+        win_cols = [f"{season} Wins" for season in seasons if f"{season} Wins" in pivot_df.columns]
+        loss_cols = [f"{season} Losses" for season in seasons if f"{season} Losses" in pivot_df.columns]
+
+        pivot_df['Total Wins'] = pivot_df[win_cols].sum(axis=1)
+        pivot_df['Total Losses'] = pivot_df[loss_cols].sum(axis=1)
+        pivot_df['Total Winning %'] = pivot_df['Total Wins'] / (pivot_df['Total Wins'] + pivot_df['Total Losses'])
+        pivot_df['Total Winning %'] = pivot_df['Total Winning %'].fillna(0)
+
+        # Rearrange columns as per desired format
+        columns_order = []
+        for season in seasons:
+            for col_type in ['Wins', 'Losses', 'Winning %']:
+                col_name = f"{season} {col_type}"
+                if col_name in pivot_df.columns:
+                    columns_order.append(col_name)
+        columns_order += ['Total Wins', 'Total Losses', 'Total Winning %']
+
+        # Reset index to bring 'Display Name' back as a column
+        pivot_df = pivot_df.reset_index()
+
+        # Ensure all desired columns are present
+        pivot_df = pivot_df[['Display Name'] + columns_order]
+
+        # Round winning percentages to desired decimal places
+        pct_cols = [col for col in pivot_df.columns if 'Winning %' in col]
+        pivot_df[pct_cols] = pivot_df[pct_cols].round(4)
+
+        return pivot_df
 
     def upload_to_google_sheets(self, sheet_name, df):
         """
@@ -209,7 +324,7 @@ class SleeperSheets:
             sheet = spreadsheet.worksheet(sheet_name)
             sheet.clear()  # Clear existing data
         except gspread.exceptions.WorksheetNotFound:
-            sheet = spreadsheet.add_worksheet(title=sheet_name, rows="100", cols="20")  # Create new sheet if not found
+            sheet = spreadsheet.add_worksheet(title=sheet_name, rows="1000", cols="20")  # Create new sheet if not found
 
         # Update sheet with DataFrame data
         data = [df.columns.values.tolist()] + df.values.tolist()
@@ -223,10 +338,12 @@ class SleeperSheets:
 
         # Process each season
         season_dfs = {}
+        win_loss_data = []  # List to collect win/loss data across seasons
+
         for year, league_id in self.league_ids.items():
             if league_id:  # Check if league_id is not empty
                 print(f"Processing {year} season data...")
-                season_df = self.process_season(league_id, year)
+                season_df, win_loss_df = self.process_season(league_id, year)
                 sheet_name = f"{year} Season - Weekly Points"
                 if not season_df.empty:
                     print(f"Uploading {year} season data to Google Sheets.")
@@ -234,6 +351,19 @@ class SleeperSheets:
                     season_dfs[year] = season_df
                 else:
                     print(f"No data available for {year} season.")
+
+                if not win_loss_df.empty:
+                    win_loss_data.append(win_loss_df)
+            else:
+                print(f"No League ID provided for Year: {year}")
+
+        # Combine all win/loss data into a single DataFrame
+        if win_loss_data:
+            combined_win_loss_df = pd.concat(win_loss_data, ignore_index=True)
+            # Process combined win/loss data to match desired format
+            win_loss_summary_df = self.create_win_loss_summary(combined_win_loss_df)
+            # Upload win/loss data to Google Sheets
+            self.upload_to_google_sheets("Win / Loss", win_loss_summary_df)
 
         print("SleeperSheets execution completed.")
 
@@ -669,8 +799,8 @@ class HighestScorerProcessor:
             # Process the matchups
             for matchup in matchups:
                 roster_id = matchup['roster_id']
-                starters = matchup['starters']
-                starters_points = matchup.get('starters_points', [])
+                starters = matchup.get('starters', [])
+                players_points = matchup.get('players_points', {})
 
                 # Get the user_id from the roster mapping
                 user_id = roster_mapping.get(roster_id, 'Unknown')
@@ -681,8 +811,8 @@ class HighestScorerProcessor:
 
                 # Create a list of dictionaries containing player IDs and their corresponding points
                 starters_with_points = [
-                    {'player_id': player_id, 'points': starters_points[idx]}
-                    for idx, player_id in enumerate(starters)
+                    {'player_id': player_id, 'points': players_points.get(player_id, 0)}
+                    for player_id in starters
                 ]
 
                 # Check if any starter has the highest points
@@ -697,14 +827,11 @@ class HighestScorerProcessor:
                             'player_name': player_mapping.get(starter['player_id'], {}).get('full_name', 'Unknown Player')
                         }
         except requests.exceptions.RequestException as e:
-            print(f"An error occurred: {e}")
+            print(f"An error occurred while fetching data: {e}")
         except Exception as e:
             print(f"An unexpected error occurred: {e}")
 
-        # If highest points are 0 or less, return None and stop processing
-        if highest_points <= 0:
-            return None
-
+        # Return the highest_scorer even if points are zero or negative
         return highest_scorer
 
     def process_year(self, year, league_id):
@@ -718,21 +845,29 @@ class HighestScorerProcessor:
                 print(f"Processing Year {year}, Week {week}...")
                 highest_scorer = self.process_week(league_id, year, week)
                 if highest_scorer:
-                    # Append new record
-                    self.worksheet.append_row([
-                        int(year),
-                        int(week),
-                        highest_scorer['display_name'],
-                        highest_scorer['player_name'],
-                        float(highest_scorer['points']),
-                        highest_scorer['player_id']
-                    ])
-                    self.save_processed_week(year, week)
+                    if highest_scorer['points'] == 0:
+                        print(f"Highest scorer has 0 points in Year {year}, Week {week}. Stopping further processing.")
+                        # Do not mark the week as processed
+                        break  # Stop processing further weeks for this year
+                    else:
+                        # Append new record
+                        self.worksheet.append_row([
+                            int(year),
+                            int(week),
+                            highest_scorer['display_name'],
+                            highest_scorer['player_name'],
+                            float(highest_scorer['points']),
+                            highest_scorer['player_id']
+                        ])
+                        self.save_processed_week(year, week)
                 else:
-                    print(f"No valid highest scorer for Year {year} - Week {week}. Stopping further processing.")
-                    break  # Stop processing further weeks if no valid highest scorer is found
+                    print(f"No valid highest scorer for Year {year} - Week {week}. Skipping to next week.")
+                    self.save_processed_week(year, week)  # Mark as processed even if no data
+                    continue
             else:
                 print(f"Year {year} - Week {week} has already been processed.")
+        else:
+            print(f"Completed processing all weeks for Year {year}.")
 
     def run(self):
         print("Starting HighestScorerProcessor execution...")
